@@ -4,8 +4,10 @@
   "description": "Rides delivery backend API",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+   "start": "node src/server.js",
+  "dev": "node --watch src/server.js",
+  "migrate": "node-pg-migrate -m migrations",
+  "migrate:create": "node-pg-migrate create -m migrations"
   },
   "repository": {
     "type": "git",
@@ -20,7 +22,9 @@
   },
   "homepage": "https://github.com/travelis-Rwanda/rides-delivery-backend#readme",
   "dependencies": {
+    "dotenv": "^18.0.10",
     "express": "^5.1.0",
+    "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.1"
   }
 }
