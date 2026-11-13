@@ -7,3 +7,364 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// Enums
+enum UserRole {
+  admin
+  driver
+  customer
+}
+
+enum DeliveryCategory {
+  Parcel
+  Restaurant
+  Shop
+  Cargo
+}
+
+enum DeliveryStatus {
+  open
+  negotiating
+  confirmed
+  rejected
+  in_progress
+  failed
+  completed
+  returning
+  returned
+  cancelled
+  refund_requested
+  refund_processed
+  disputed
+}
+
+enum FailureReason {
+  customer_not_available
+  incorrect_address
+  access_denied
+  package_damaged
+  customer_refused
+  other
+}
+
+enum TemperatureControl {
+  hot
+  cold
+  frozen
+  room_temperature
+}
+
+enum VehicleType {
+  van
+  small_truck
+  large_truck
+  flatbed
+}
+
+enum FragilityLevel {
+  fragile
+  standard
+  durable
+}
+
+enum PackageSize {
+  small
+  medium
+  large
+  extra_large
+}
+
+enum PaymentMethod {
+  MTN_Mobile_Money
+  Airtel_Money
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum RefundStatus {
+  requested
+  approved
+  rejected
+  processed
+}
+
+enum DisputeStatus {
+  open
+  under_review
+  resolved
+  closed
+}
+
+// Tables
+
+// Mirrors Rides Platform user references, stores user roles (admin, driver, customer), 
+// Rwanda phone numbers, and driver category preferences
+model User {
+  id                    String              @id @default(uuid())
+  ridesUserId           String              @unique // Reference to Rides Platform user ID
+  role                  UserRole
+  phoneNumber           String              @db.VarChar(15) // Rwanda format: +250XXXXXXXXX
+  categoryPreferences   DeliveryCategory[]  @default([])
+  isAvailable           Boolean             @default(false) // For drivers
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  // Relations
+  deliveryRequestsCreated DeliveryRequest[] @relation("CustomerRequests")
+  priceOffers             PriceOffer[]
+  bookingsAsDriver        Booking[]         @relation("DriverBookings")
+  locationTracking        LocationTracking[]
+  statusHistoryChanges    StatusHistory[]
+  disputesRaised          Dispute[]         @relation("DisputeInitiator")
+  disputesAgainst         Dispute[]         @relation("DisputeRespondent")
+
+  @@index([ridesUserId])
+  @@index([role])
+  @@index([isAvailable])
+  @@map("users")
+}
+
+// Stores customer pickup/destination coordinates, category details, distances, and item descriptions
+model DeliveryRequest {
+  id                    String              @id @default(uuid())
+  customerId            String
+  
+  // Location details
+  pickupLatitude        Float
+  pickupLongitude       Float
+  destinationLatitude   Float
+  destinationLongitude  Float
+  estimatedDistanceKm   Float?
+  
+  // Delivery details
+  category              DeliveryCategory
+  itemDescription       String              @db.Text
+  status                DeliveryStatus      @default(open)
+  
+  // Contact information
+  customerPhoneNumber   String              @db.VarChar(15)
+  recipientPhoneNumber  String?             @db.VarChar(15)
+  
+  // Category-specific attributes
+  // Restaurant
+  temperatureControl    TemperatureControl?
+  preparationTimeMinutes Int?
+  
+  // Cargo
+  requiredVehicleType   VehicleType?
+  cargoWeightKg         Float?
+  cargoDimensionsCm     String?             @db.VarChar(100)
+  
+  // Shop
+  fragilityLevel        FragilityLevel?
+  
+  // Parcel
+  packageSize           PackageSize?
+  
+  // Timestamps
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  // Relations
+  customer              User                @relation("CustomerRequests", fields: [customerId], references: [id])
+  priceOffers           PriceOffer[]
+  booking               Booking?
+  locationTracking      LocationTracking[]
+  statusHistory         StatusHistory[]
+  refund                Refund?
+  dispute               Dispute?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+  @@map("delivery_requests")
+}
+
+// Captures competitive bidding amounts submitted by drivers in Rwandan Francs
+model PriceOffer {
+  id                  String            @id @default(uuid())
+  deliveryRequestId   String
+  driverId            String
+  offeredPriceRWF     Float             // Rwandan Francs
+  isAccepted          Boolean           @default(false)
+  isRejected          Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Relations
+  deliveryRequest     DeliveryRequest   @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  driver              User              @relation(fields: [driverId], references: [id])
+
+  @@index([deliveryRequestId])
+  @@index([driverId])
+  @@index([createdAt])
+  @@map("price_offers")
+}
+
+// Confirmed agreements pairing a delivery request with an accepted driver and agreed price
+model Booking {
+  id                  String            @id @default(uuid())
+  deliveryRequestId   String            @unique
+  driverId            String
+  agreedPriceRWF      Float             // Rwandan Francs
+  confirmedAt         DateTime          @default(now())
+  completedAt         DateTime?
+  
+  // Rejection tracking
+  rejectionReason     String?           @db.Text
+  rejectedAt          DateTime?
+  
+  // Failure tracking
+  failureReason       FailureReason?
+  failureLocation     String?           @db.VarChar(100) // "lat,lng"
+  failedAt            DateTime?
+  
+  // Return tracking
+  returnDistanceKm    Float?
+  returnCompletedAt   DateTime?
+  
+  // Cancellation tracking
+  cancellationReason  String?           @db.Text
+  cancelledBy         String?           // User ID who cancelled
+  cancelledAt         DateTime?
+  cancellationFeeRWF  Float?
+  
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Relations
+  deliveryRequest     DeliveryRequest   @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  driver              User              @relation("DriverBookings", fields: [driverId], references: [id])
+  paymentTransaction  PaymentTransaction?
+
+  @@index([driverId])
+  @@index([confirmedAt])
+  @@map("bookings")
+}
+
+// Records live latitude and longitude updates from drivers during active delivery execution
+model LocationTracking {
+  id                  String            @id @default(uuid())
+  deliveryRequestId   String
+  driverId            String
+  latitude            Float
+  longitude           Float
+  accuracy            Float?            // GPS accuracy in meters
+  recordedAt          DateTime          @default(now())
+
+  // Relations
+  deliveryRequest     DeliveryRequest   @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  driver              User              @relation(fields: [driverId], references: [id])
+
+  @@index([deliveryRequestId])
+  @@index([driverId])
+  @@index([recordedAt])
+  @@map("location_tracking")
+}
+
+// Tracks MTN Mobile Money and Airtel Money payment states and references
+model PaymentTransaction {
+  id                    String          @id @default(uuid())
+  bookingId             String          @unique
+  amountRWF             Float           // Rwandan Francs
+  paymentMethod         PaymentMethod
+  transactionReference  String?         @db.VarChar(100) // External payment system reference
+  status                PaymentStatus   @default(pending)
+  initiatedAt           DateTime        @default(now())
+  completedAt           DateTime?
+  failedAt              DateTime?
+  refundedAt            DateTime?
+  errorMessage          String?         @db.Text
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  // Relations
+  booking               Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([transactionReference])
+  @@map("payment_transactions")
+}
+
+// Maintains an immutable audit trail of every lifecycle state transition and the user who triggered it
+model StatusHistory {
+  id                  String            @id @default(uuid())
+  deliveryRequestId   String
+  previousStatus      DeliveryStatus?
+  newStatus           DeliveryStatus
+  changedBy           String            // User ID who made the change
+  changeReason        String?           @db.Text
+  metadata            String?           @db.Text // JSON string for additional context
+  createdAt           DateTime          @default(now())
+
+  // Relations
+  deliveryRequest     DeliveryRequest   @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  user                User              @relation(fields: [changedBy], references: [id])
+
+  @@index([deliveryRequestId])
+  @@index([changedBy])
+  @@index([createdAt])
+  @@map("status_history")
+}
+
+// Manages customer reimbursement requests, approval timestamps, and mobile money refund workflows within the 48-hour window
+model Refund {
+  id                  String            @id @default(uuid())
+  deliveryRequestId   String            @unique
+  amountRWF           Float             // Rwandan Francs
+  reason              String            @db.Text
+  status              RefundStatus      @default(requested)
+  requestedAt         DateTime          @default(now())
+  approvedAt          DateTime?
+  processedAt         DateTime?
+  rejectedAt          DateTime?
+  rejectionReason     String?           @db.Text
+  refundMethod        PaymentMethod?
+  transactionReference String?          @db.VarChar(100)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Relations
+  deliveryRequest     DeliveryRequest   @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryRequestId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("refunds")
+}
+
+// Handles formal conflict records, evidence notes, and resolutions raised by customers or drivers within the 7-day window
+model Dispute {
+  id                  String            @id @default(uuid())
+  deliveryRequestId   String            @unique
+  initiatorId         String            // User who raised the dispute
+  respondentId        String            // Other party in the dispute
+  reason              String            @db.Text
+  evidenceDescription String?           @db.Text
+  status              DisputeStatus     @default(open)
+  resolutionNotes     String?           @db.Text
+  outcome             String?           @db.Text
+  raisedAt            DateTime          @default(now())
+  resolvedAt          DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Relations
+  deliveryRequest     DeliveryRequest   @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  initiator           User              @relation("DisputeInitiator", fields: [initiatorId], references: [id])
+  respondent          User              @relation("DisputeRespondent", fields: [respondentId], references: [id])
+
+  @@index([deliveryRequestId])
+  @@index([initiatorId])
+  @@index([respondentId])
+  @@index([status])
+  @@index([raisedAt])
+  @@map("disputes")
+}
