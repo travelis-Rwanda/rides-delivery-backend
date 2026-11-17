@@ -1,39 +1,35 @@
 const express = require('express');
 const { validateCategories } = require('./validation');
 const { getPreferences, setPreferences } = require('./preferencesStore');
+const { authenticate, requireRole } = require('./middleware/auth');
+const { AppError } = require('./errors');
 
 const router = express.Router();
 
-// TEMPORARY: the real backend will get the driver ID from the Rides auth token.
-// For practice, we read it from a header called "x-driver-id".
-function fakeAuth(req, res, next) {
-  const driverId = req.header('x-driver-id');
-  if (!driverId) {
-    return res.status(401).json({
-      error: { code: 'UNAUTHORIZED', message: 'Missing x-driver-id header', timestamp: new Date().toISOString() },
-    });
+// Read the driver's saved categories. Driver role only (Req 1.5).
+router.get(
+  '/drivers/me/category-preferences',
+  authenticate,
+  requireRole('driver'),
+  (req, res) => {
+    const categories = getPreferences(req.user.id); // Rides user ID (Req 1.3)
+    res.json({ driverId: req.user.id, categories, showingAll: categories.length === 0 });
   }
-  req.driverId = driverId;
-  next();
-}
+);
 
-router.get('/drivers/me/category-preferences', fakeAuth, (req, res) => {
-  const categories = getPreferences(req.driverId);
-  res.json({ driverId: req.driverId, categories, showingAll: categories.length === 0 });
-});
-
-router.put('/drivers/me/category-preferences', fakeAuth, (req, res) => {
-  const { categories } = req.body;
-  const problem = validateCategories(categories);
-
-  if (problem) {
-    return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: problem, timestamp: new Date().toISOString() },
-    });
+// Save the driver's categories. Driver role only (Req 1.5).
+router.put(
+  '/drivers/me/category-preferences',
+  authenticate,
+  requireRole('driver'),
+  (req, res, next) => {
+    const problem = validateCategories(req.body && req.body.categories);
+    if (problem) {
+      return next(new AppError('VALIDATION_ERROR', problem, 400));
+    }
+    const saved = setPreferences(req.user.id, req.body.categories);
+    res.json({ driverId: req.user.id, categories: saved, showingAll: saved.length === 0 });
   }
-
-  const saved = setPreferences(req.driverId, categories);
-  res.json({ driverId: req.driverId, categories: saved, showingAll: saved.length === 0 });
-});
+);
 
 module.exports = router;
