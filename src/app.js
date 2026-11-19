@@ -2,11 +2,14 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
+import swaggerUi from "swagger-ui-express";
 
 import config from "./config/index.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { optionalAuth } from "./middleware/auth.js";
 import { rateLimiter } from "./middleware/rateLimiter.js";
+import routes from "./routes/index.js";
+import swaggerSpec from "./config/swagger.js";
 
 const app = express();
 
@@ -27,7 +30,20 @@ app.use(optionalAuth);
 // Rate limiting (applies different limits based on authentication status)
 app.use(rateLimiter);
 
-// Health check endpoint
+// Swagger API docs (keep updated with every new endpoint)
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));
+
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     tags: [Health]
+ *     summary: Health check
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ */
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
@@ -37,8 +53,8 @@ app.get("/health", (req, res) => {
   });
 });
 
-// API routes will be added here
-// app.use('/api/v1', routes);
+// API routes
+app.use("/api", routes);
 
 // 404 handler
 app.use(notFoundHandler);
