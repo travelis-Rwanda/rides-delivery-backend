@@ -1,0 +1,26 @@
+{
+  "name": "rides-delivery-backend",
+  "version": "1.0.0",
+  "description": "Rides delivery backend API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/travelis-Rwanda/rides-delivery-backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/travelis-Rwanda/rides-delivery-backend/issues"
+  },
+  "homepage": "https://github.com/travelis-Rwanda/rides-delivery-backend#readme",
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.23.1"
+  }
+}
