@@ -154,12 +154,16 @@ const options = {
       },
       { name: "Health", description: "Service health" },
       { 
-        name: "Order Tracking", 
-        description: "Real-time order status tracking and updates. Track your delivery from Order Placed to Delivered."
+        name: "Orders", 
+        description: "Create and manage delivery orders (CRUD operations)"
       },
-      { name: "Offers", description: "Delivery request price offers" },
-      { name: "Negotiation", description: "Price negotiation actions" },
-      { name: "Payments", description: "Booking payment method and transactions (MTN/Airtel)" },
+      { 
+        name: "Order Tracking", 
+        description: "Real-time order status tracking and updates"
+      },
+      { name: "Offers", description: "Driver price offers and negotiations" },
+      { name: "Negotiation", description: "Price negotiation between customers and drivers" },
+      { name: "Payments", description: "Payment methods and transactions" },
     ],
   },
   apis: ["./src/app.js", "./src/routes/**/*.js", "./src/controllers/**/*.js"],
