@@ -1,127 +1,91 @@
-import { validateToken } from "../services/ridesPlatformService.js";
+/**
+ * Authentication Middleware
+ * Integrates with Rides Platform authentication system
+ */
+
+import { AppError } from '../errors.js';
+import defaultRidesClient from '../clients/ridesAuthClient.js';
 
 /**
- * Middleware to authenticate requests using JWT token from Rides Platform
+ * A factory, so tests can plug in a fake Rides client.
  */
-async function authenticate(req, res, next) {
-  try {
-    // Extract token from Authorization header
-    const authHeader = req.headers.authorization;
+function createAuth(ridesClient = defaultRidesClient) {
+  /**
+   * Reads "Authorization: Bearer <token>", asks Rides, then sets req.user.
+   * Requirement 1: Integration with Rides Authentication System
+   */
+  async function authenticate(req, res, next) {
+    try {
+      const header = req.header('authorization') || '';
+      const [scheme, token] = header.split(' ');
+      
+      if (scheme !== 'Bearer' || !token) {
+        throw new AppError('UNAUTHORIZED', 'Missing or malformed Authorization header', 401);
+      }
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Unauthorized",
-        message: "No token provided",
-        timestamp: new Date().toISOString(),
-      });
+      const user = await ridesClient.verifyToken(token);
+      req.user = { id: user.id, roles: user.roles }; // the Rides user ID (Req 1.3)
+      next();
+    } catch (err) {
+      next(err); // the errorHandler builds the JSON response
     }
+  }
 
-    const token = authHeader.substring(7);
-
-    // Validate token with Rides Platform
-    const userContext = await validateToken(token);
-
-    if (!userContext) {
-      return res.status(401).json({
-        error: "Unauthorized",
-        message: "Invalid or expired token",
-        timestamp: new Date().toISOString(),
-      });
+  /**
+   * Optional authentication - allows request to proceed with or without token
+   * If token is present and valid, sets req.user
+   */
+  async function optionalAuth(req, res, next) {
+    try {
+      const header = req.header('authorization') || '';
+      const [scheme, token] = header.split(' ');
+      
+      if (scheme === 'Bearer' && token) {
+        const user = await ridesClient.verifyToken(token);
+        req.user = { id: user.id, roles: user.roles };
+      }
+      next();
+    } catch (err) {
+      // For optional auth, we don't fail - just proceed without user
+      next();
     }
+  }
 
-    // Attach user context to request
-    req.user = {
-      id: userContext.userId,
-      role: userContext.role,
-      email: userContext.email,
-      phone: userContext.phone,
+  /**
+   * Allows the request only if Rides says the user has this role (Req 1.5).
+   * @param {string} role - Required role (e.g., 'driver', 'customer', 'admin')
+   */
+  function requireRole(role) {
+    return (req, res, next) => {
+      if (!req.user || !req.user.roles.includes(role)) {
+        return next(new AppError('FORBIDDEN', `This action requires the ${role} role`, 403));
+      }
+      next();
     };
-
-    next();
-  } catch (error) {
-    console.error("Authentication error:", error);
-
-    return res.status(401).json({
-      error: "Unauthorized",
-      message: "Authentication failed",
-      timestamp: new Date().toISOString(),
-    });
   }
-}
 
-/**
- * Middleware to require specific role(s)
- * @param {string|string[]} allowedRoles - Role or array of roles allowed
- */
-function requireRole(allowedRoles) {
-  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        error: "Unauthorized",
-        message: "Authentication required",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        error: "Forbidden",
-        message: `Access denied. Required role: ${roles.join(" or ")}`,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    next();
-  };
-}
-
-/**
- * Middleware to require customer role
- */
-const requireCustomer = requireRole("customer");
-
-/**
- * Middleware to require driver role
- */
-const requireDriver = requireRole("driver");
-
-/**
- * Optional authentication - adds user context if token is provided
- */
-async function optionalAuth(req, res, next) {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return next();
-    }
-
-    const token = authHeader.substring(7);
-
-    const userContext = await validateToken(token);
-
-    if (userContext) {
-      req.user = {
-        id: userContext.userId,
-        role: userContext.role,
-        email: userContext.email,
-        phone: userContext.phone,
-      };
-    }
-
-    next();
-  } catch (error) {
-    // Silent fail for optional authentication
-    next();
+  /**
+   * Allows the request if user has ANY of the specified roles
+   * @param {string[]} roles - Array of acceptable roles
+   */
+  function requireAnyRole(...roles) {
+    return (req, res, next) => {
+      if (!req.user) {
+        return next(new AppError('FORBIDDEN', 'Authentication required', 403));
+      }
+      
+      const hasRole = roles.some(role => req.user.roles.includes(role));
+      if (!hasRole) {
+        return next(new AppError('FORBIDDEN', `This action requires one of: ${roles.join(', ')}`, 403));
+      }
+      next();
+    };
   }
+
+  return { authenticate, optionalAuth, requireRole, requireAnyRole };
 }
 
-export {
-  authenticate,
-  requireRole,
-  requireCustomer,
-  requireDriver,
-  optionalAuth,
-};
+const { authenticate, optionalAuth, requireRole, requireAnyRole } = createAuth();
+
+export { createAuth, authenticate, optionalAuth, requireRole, requireAnyRole };
+export default { authenticate, optionalAuth, requireRole, requireAnyRole };

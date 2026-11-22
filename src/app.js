@@ -5,7 +5,7 @@ import morgan from "morgan";
 import swaggerUi from "swagger-ui-express";
 
 import config from "./config/index.js";
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { errorHandler, notFoundHandler } from "./errors.js";
 import { optionalAuth } from "./middleware/auth.js";
 import { rateLimiter } from "./middleware/rateLimiter.js";
 import routes from "./routes/index.js";
