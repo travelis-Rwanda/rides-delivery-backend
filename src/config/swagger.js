@@ -26,6 +26,37 @@ const options = {
         },
       },
       schemas: {
+        User: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            username: { type: "string", example: "john_doe" },
+            email: { type: "string", format: "email", example: "john@example.com" },
+            phoneNumber: { type: "string", example: "+250788123456" },
+            address: { type: "string", nullable: true, example: "KN 5 Ave, Kigali" },
+            role: { 
+              type: "string", 
+              enum: ["customer", "driver", "admin"],
+              example: "customer"
+            },
+            gender: {
+              type: "string",
+              enum: ["male", "female", "other", "prefer_not_to_say"],
+              nullable: true
+            },
+            categoryPreferences: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["Parcel", "Restaurant", "Shop", "Cargo"]
+              }
+            },
+            isAvailable: { type: "boolean", example: false },
+            isActive: { type: "boolean", example: true },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
         ErrorResponse: {
           type: "object",
           properties: {
@@ -117,6 +148,10 @@ const options = {
       },
     },
     tags: [
+      { 
+        name: "Authentication", 
+        description: "Authentication endpoints (handled by Rides Platform). In development mode with RIDES_AUTH_MODE=mock, use: driver-token, customer-token, or admin-token"
+      },
       { name: "Health", description: "Service health" },
       { name: "Offers", description: "Delivery request price offers" },
       { name: "Negotiation", description: "Price negotiation actions" },

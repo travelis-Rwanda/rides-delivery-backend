@@ -15,6 +15,13 @@ enum UserRole {
   customer
 }
 
+enum Gender {
+  male
+  female
+  other
+  prefer_not_to_say
+}
+
 enum DeliveryCategory {
   Parcel
   Restaurant
@@ -102,15 +109,19 @@ enum DisputeStatus {
 
 // Tables
 
-// Mirrors Rides Platform user references, stores user roles (admin, driver, customer), 
-// Rwanda phone numbers, and driver category preferences
+// User authentication and profile table
 model User {
   id                    String              @id @default(uuid())
-  ridesUserId           String              @unique // Reference to Rides Platform user ID
-  role                  UserRole
-  phoneNumber           String              @db.VarChar(15) // Rwanda format: +250XXXXXXXXX
+  username              String              @unique @db.VarChar(50)
+  email                 String              @unique @db.VarChar(255)
+  phoneNumber           String              @unique @db.VarChar(15) // Rwanda format: +250XXXXXXXXX
+  password              String              @db.VarChar(255) // Hashed password
+  address               String?             @db.Text
+  role                  UserRole            @default(customer)
+  gender                Gender?
   categoryPreferences   DeliveryCategory[]  @default([])
   isAvailable           Boolean             @default(false) // For drivers
+  isActive              Boolean             @default(true)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
@@ -123,7 +134,9 @@ model User {
   disputesRaised          Dispute[]         @relation("DisputeInitiator")
   disputesAgainst         Dispute[]         @relation("DisputeRespondent")
 
-  @@index([ridesUserId])
+  @@index([email])
+  @@index([username])
+  @@index([phoneNumber])
   @@index([role])
   @@index([isAvailable])
   @@map("users")
