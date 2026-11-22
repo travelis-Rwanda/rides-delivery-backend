@@ -30,19 +30,23 @@ enum DeliveryCategory {
 }
 
 enum DeliveryStatus {
-  open
-  negotiating
-  confirmed
-  rejected
-  in_progress
-  failed
-  completed
-  returning
-  returned
-  cancelled
-  refund_requested
-  refund_processed
-  disputed
+  open                  // Order Placed - Order successfully submitted
+  negotiating           // Drivers submitting offers
+  confirmed             // Order Confirmed - Driver accepted (booking created)
+  preparing             // Preparing Order - Seller is preparing items
+  ready_for_pickup      // Ready for Pickup - Order ready for collection
+  out_for_delivery      // Out for Delivery - Driver picked up order
+  delivered             // Delivered - Order successfully completed
+  rejected              // Driver rejected the order
+  failed                // Delivery failed
+  returning             // Returning to sender
+  returned              // Returned to sender
+  cancelled             // Order cancelled
+  refund_requested      // Refund requested by customer
+  refund_processed      // Refund processed
+  disputed              // Dispute raised
+  completed             // Legacy status - same as delivered
+  in_progress           // Legacy status - same as out_for_delivery
 }
 
 enum FailureReason {

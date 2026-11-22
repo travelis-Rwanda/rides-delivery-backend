@@ -150,9 +150,13 @@ const options = {
     tags: [
       { 
         name: "Authentication", 
-        description: "Authentication endpoints (handled by Rides Platform). In development mode with RIDES_AUTH_MODE=mock, use: driver-token, customer-token, or admin-token"
+        description: "User registration, login, and profile management"
       },
       { name: "Health", description: "Service health" },
+      { 
+        name: "Order Tracking", 
+        description: "Real-time order status tracking and updates. Track your delivery from Order Placed to Delivered."
+      },
       { name: "Offers", description: "Delivery request price offers" },
       { name: "Negotiation", description: "Price negotiation actions" },
       { name: "Payments", description: "Booking payment method and transactions (MTN/Airtel)" },
