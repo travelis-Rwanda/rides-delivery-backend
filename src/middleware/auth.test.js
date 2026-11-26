@@ -1,62 +1,60 @@
-const test = require('node:test');
-const assert = require('node:assert');
-const express = require('express');
-const { createAuth } = require('./auth');
-const { errorHandler, AppError } = require('../errors');
+import test from 'node:test';
+import assert from 'node:assert';
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import { authenticate, requireRole } from './auth.js';
+import { errorHandler } from '../errors.js';
 
-// A fake Rides, so the tests need no network and no database.
-const fakeRides = {
-  verifyToken: async (token) => {
-    if (token === 'driver-token') return { id: 'driver-1', roles: ['driver'] };
-    if (token === 'customer-token') return { id: 'customer-1', roles: ['customer'] };
-    throw new AppError('UNAUTHORIZED', 'Invalid or expired Rides token', 401, {
-      ridesError: { code: 'INVALID_TOKEN' },
-    });
-  },
-};
+process.env.JWT_SECRET = 'test-secret';
+const sign = (payload, options) => jwt.sign(payload, 'test-secret', options);
 
 function startServer() {
-  const { authenticate, requireRole } = createAuth(fakeRides);
   const app = express();
   app.get('/driver-only', authenticate, requireRole('driver'), (req, res) => {
     res.json({ id: req.user.id });
   });
   app.use(errorHandler);
-  const server = app.listen(0); // port 0 = pick any free port
+  const server = app.listen(0);
   return { server, url: `http://localhost:${server.address().port}/driver-only` };
 }
 
-test('no token: 401 in the Req 18 error envelope', async () => {
+async function get(headers) {
   const { server, url } = startServer();
-  const res = await fetch(url);
+  const res = await fetch(url, { headers });
   const body = await res.json();
   server.close();
+  return { status: res.status, body };
+}
+
+test('no token: 401 in the error envelope', async () => {
+  const res = await get({});
   assert.strictEqual(res.status, 401);
-  assert.strictEqual(body.error.code, 'UNAUTHORIZED');
-  assert.ok(body.error.timestamp);
+  assert.strictEqual(res.body.error.code, 'UNAUTHORIZED');
+  assert.ok(res.body.error.timestamp);
 });
 
-test('invalid token: 401 carrying the Rides error details', async () => {
-  const { server, url } = startServer();
-  const res = await fetch(url, { headers: { Authorization: 'Bearer wrong' } });
-  const body = await res.json();
-  server.close();
+test('invalid token: 401 with the reason in details', async () => {
+  const res = await get({ Authorization: 'Bearer not-a-real-token' });
   assert.strictEqual(res.status, 401);
-  assert.strictEqual(body.error.details.ridesError.code, 'INVALID_TOKEN');
+  assert.strictEqual(res.body.error.details.reason, 'JsonWebTokenError');
+});
+
+test('expired token: 401', async () => {
+  const token = sign({ id: 'driver-1', role: 'driver' }, { expiresIn: -10 });
+  const res = await get({ Authorization: `Bearer ${token}` });
+  assert.strictEqual(res.status, 401);
+  assert.strictEqual(res.body.error.details.reason, 'TokenExpiredError');
 });
 
 test('a customer cannot use a driver-only route: 403', async () => {
-  const { server, url } = startServer();
-  const res = await fetch(url, { headers: { Authorization: 'Bearer customer-token' } });
-  server.close();
+  const token = sign({ id: 'customer-1', role: 'customer' });
+  const res = await get({ Authorization: `Bearer ${token}` });
   assert.strictEqual(res.status, 403);
 });
 
-test('a driver is allowed and gets the Rides user ID', async () => {
-  const { server, url } = startServer();
-  const res = await fetch(url, { headers: { Authorization: 'Bearer driver-token' } });
-  const body = await res.json();
-  server.close();
+test('a driver is allowed and the user ID comes from the token', async () => {
+  const token = sign({ id: 'driver-1', role: 'driver' });
+  const res = await get({ Authorization: `Bearer ${token}` });
   assert.strictEqual(res.status, 200);
-  assert.strictEqual(body.id, 'driver-1');
+  assert.strictEqual(res.body.id, 'driver-1');
 });

@@ -1,8 +1,8 @@
-const { CATEGORIES } = require('./constants');
+import { CATEGORIES } from './constants.js';
 
 // Checks the list of categories a driver wants to save.
-// Returns an error message (string) if invalid, or null if valid.
-function validateCategories(categories) {
+
+export function validateCategories(categories) {
   if (!Array.isArray(categories)) {
     return 'categories must be an array';
   }
@@ -15,5 +15,3 @@ function validateCategories(categories) {
 
   return null; // null means "no problem found"
 }
-
-module.exports = { validateCategories };

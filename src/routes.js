@@ -1,35 +1,25 @@
-const express = require('express');
-const { validateCategories } = require('./validation');
-const { getPreferences, setPreferences } = require('./preferencesStore');
-const { authenticate, requireRole } = require('./middleware/auth');
-const { AppError } = require('./errors');
+import { Router } from 'express';
+import { validateCategories } from './validation.js';
+import { getPreferences, setPreferences } from './preferencesStore.js';
+import { authenticate, requireRole } from './middleware/auth.js';
+import { AppError } from './errors.js';
 
-const router = express.Router();
+const router = Router();
 
-// Read the driver's saved categories. Driver role only (Req 1.5).
-router.get(
-  '/drivers/me/category-preferences',
-  authenticate,
-  requireRole('driver'),
-  (req, res) => {
-    const categories = getPreferences(req.user.id); // Rides user ID (Req 1.3)
-    res.json({ driverId: req.user.id, categories, showingAll: categories.length === 0 });
+// Read the driver's saved categories. Drivers only.
+router.get('/drivers/me/category-preferences', authenticate, requireRole('driver'), (req, res) => {
+  const categories = getPreferences(req.user.id);
+  res.json({ driverId: req.user.id, categories, showingAll: categories.length === 0 });
+});
+
+// Save the driver's categories. Drivers only.
+router.put('/drivers/me/category-preferences', authenticate, requireRole('driver'), (req, res, next) => {
+  const problem = validateCategories(req.body && req.body.categories);
+  if (problem) {
+    return next(new AppError('VALIDATION_ERROR', problem, 400));
   }
-);
+  const saved = setPreferences(req.user.id, req.body.categories);
+  res.json({ driverId: req.user.id, categories: saved, showingAll: saved.length === 0 });
+});
 
-// Save the driver's categories. Driver role only (Req 1.5).
-router.put(
-  '/drivers/me/category-preferences',
-  authenticate,
-  requireRole('driver'),
-  (req, res, next) => {
-    const problem = validateCategories(req.body && req.body.categories);
-    if (problem) {
-      return next(new AppError('VALIDATION_ERROR', problem, 400));
-    }
-    const saved = setPreferences(req.user.id, req.body.categories);
-    res.json({ driverId: req.user.id, categories: saved, showingAll: saved.length === 0 });
-  }
-);
-
-module.exports = router;
+export default router;

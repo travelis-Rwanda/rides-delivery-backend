@@ -1,5 +1,5 @@
-// An error we throw on purpose: HTTP status + code + optional details.
-class AppError extends Error {
+
+export class AppError extends Error {
   constructor(code, message, status = 400, details = undefined) {
     super(message);
     this.code = code;
@@ -9,8 +9,7 @@ class AppError extends Error {
 }
 
 // Express calls this when anything throws. It builds the Req 18.1 envelope.
-function errorHandler(err, req, res, next) {
-  // Broken JSON sent by a client is a validation error, not a server error
+export function errorHandler(err, req, res, next) {
   if (err.type === 'entity.parse.failed') {
     err = new AppError('VALIDATION_ERROR', 'Request body is not valid JSON', 400);
   }
@@ -23,9 +22,7 @@ function errorHandler(err, req, res, next) {
     message: status === 500 ? 'Internal server error' : err.message,
     timestamp: new Date().toISOString(),
   };
-  if (err.details) error.details = err.details; // carries the Rides error (Req 1.4)
+  if (err.details) error.details = err.details;
 
   res.status(status).json({ error });
 }
-
-module.exports = { AppError, errorHandler };

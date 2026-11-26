@@ -1,39 +1,47 @@
-const { AppError } = require('../errors');
-const defaultRidesClient = require('../clients/ridesAuthClient');
+import jwt from 'jsonwebtoken';
+import { AppError } from '../errors.js';
 
-// A factory, so tests can plug in a fake Rides client.
-function createAuth(ridesClient = defaultRidesClient) {
-  // Reads "Authorization: Bearer <token>", asks Rides, then sets req.user.
-  async function authenticate(req, res, next) {
-    try {
-      const header = req.header('authorization') || '';
-      const [scheme, token] = header.split(' ');
+// Checks the JWT sent as "Authorization: Bearer <token>"
+export function authenticate(req, res, next) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    return next(new AppError('CONFIG_ERROR', 'JWT_SECRET is not set', 500));
+  }
 
-      if (scheme !== 'Bearer' || !token) {
-        throw new AppError('UNAUTHORIZED', 'Missing or malformed Authorization header', 401);
-      }
+  const [scheme, token] = (req.header('authorization') || '').split(' ');
+  if (scheme !== 'Bearer' || !token) {
+    return next(new AppError('UNAUTHORIZED', 'Missing or malformed Authorization header', 401));
+  }
 
-      const user = await ridesClient.verifyToken(token);
-      req.user = { id: user.id, roles: user.roles }; // the Rides user ID (Req 1.3)
-      next();
-    } catch (err) {
-      next(err); // the errorHandler builds the JSON response
+  try {
+    const payload = jwt.verify(token, secret);
+
+    // The token may name the user "id", "userId" or "sub", and the role "role" or "roles".
+    const id = payload.id ?? payload.userId ?? payload.sub;
+    const roles = [].concat(payload.roles ?? payload.role ?? []).map((r) => String(r).toLowerCase());
+
+    if (!id) {
+      return next(new AppError('UNAUTHORIZED', 'Token does not contain a user identifier', 401));
     }
-  }
 
-  // Allows the request only if Rides says the user has this role (Req 1.5).
-  function requireRole(role) {
-    return (req, res, next) => {
-      if (!req.user || !req.user.roles.includes(role)) {
-        return next(new AppError('FORBIDDEN', `This action requires the ${role} role`, 403));
-      }
-      next();
-    };
+    req.user = { id: String(id), roles }; // the Rides user ID (Req 1.3)
+    next();
+  } catch (err) {
+    next(
+      new AppError('UNAUTHORIZED', 'Invalid or expired token', 401, {
+        reason: err.name, // for example TokenExpiredError or JsonWebTokenError
+        message: err.message,
+      })
+    );
   }
-
-  return { authenticate, requireRole };
 }
 
-const { authenticate, requireRole } = createAuth();
-
-module.exports = { createAuth, authenticate, requireRole };
+// Allows the request only if the token's roles include this role (Req 1.5).
+export function requireRole(role) {
+  return (req, res, next) => {
+    if (!req.user || !req.user.roles.includes(role)) {
+      return next(new AppError('FORBIDDEN', `This action requires the ${role} role`, 403));
+    }
+    next();
+  };
+}

@@ -1,7 +1,5 @@
-// Loads the .env file first, so RIDES_AUTH_MODE is available everywhere
-require('dotenv').config();
-
-const app = require('./app');
+import 'dotenv/config';
+import app from './app.js';
 
 const PORT = process.env.PORT || 3000;
 

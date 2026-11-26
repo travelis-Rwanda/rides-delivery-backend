@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "Rides delivery backend API",
   "main": "src/server.js",
+  "type": "module",
   "scripts": {
-   "start": "node src/server.js",
-  "dev": "node --watch src/server.js",
-  "migrate": "node-pg-migrate -m migrations",
-  "migrate:create": "node-pg-migrate create -m migrations"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
@@ -16,7 +16,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/travelis-Rwanda/rides-delivery-backend/issues"
   },
@@ -24,7 +23,8 @@
   "dependencies": {
     "dotenv": "^18.0.10",
     "express": "^5.1.0",
-    "node-pg-migrate": "^9.0.0",
-    "pg": "^8.23.1"
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.23.1",
+    "swagger-ui-express": "^5.0.1"
   }
 }
